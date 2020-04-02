@@ -19,11 +19,12 @@ rm(list=ls(all=T));options(device = 'windows');cat("\f")
 library(ggplot2) #gráficos
 library(magrittr) #pipes
 
-link_github <- 'https://raw.githubusercontent.com/wyhirai/LCE5860_multivariate-analysis/master/'
+link_github <- 'https://raw.githubusercontent.com/wyhirai/LCE5860_multivariate-analysis/master'
 ```
 
 # Dados 
 ```{r data}
+
 data_sand <- 
   link_github %>% 
   paste('/first_homework/data_sand.txt', sep = '') %>% 
