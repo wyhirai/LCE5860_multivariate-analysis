@@ -1,0 +1,22 @@
+---
+title: |
+ | Tarefa 1 - Análise Multivariada
+ | *Análise dos lanches da empresa McDonalds*
+subtitle: | 
+ | Docente: Dr. Afrânio vieira
+ | Departamento: Estatística e Experimentação Agronômica - USP
+author: 
+  name: "Welinton Yoshio Hirai"
+  email: 'wyhirai@usp.br'
+date: "02/04/2020"
+output: html_document
+---
+
+```{r setup, include=F}
+rm(list=ls(all=T));options(device = 'windows');cat("\f")
+
+#pacotes utilizados
+library(ggplot2) #gráficos
+library(magrittr) #pipes
+```
+
