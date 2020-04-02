@@ -18,19 +18,87 @@ rm(list=ls(all=T));options(device = 'windows');cat("\f")
 #pacotes utilizados
 library(ggplot2) #gráficos
 library(magrittr) #pipes
+library(reshape2) #organização dos dados
 
 link_github <- 'https://raw.githubusercontent.com/wyhirai/LCE5860_multivariate-analysis/master'
 ```
 
 # Dados 
 ```{r data}
-
 data_sand <- 
   link_github %>% 
   paste('/first_homework/data_sand.txt', sep = '') %>% 
   url() %>% 
   read.table(header = T, dec = ',')
-  
-  
 ```
 
+# Análise Gráfica
+
+## Unidimensional
+```{r boxplot}
+data_sand %>% 
+  melt(id.vars = 'Sanduiches') %>% 
+  ggplot(aes(y = value,
+             fill = variable)) +
+  geom_boxplot(col = 'black') +
+  geom_violin(aes(x = 0), alpha = .2) +
+  facet_wrap(facets = 'variable', scales = 'free') +
+  stat_summary(aes(x = 0), fun.y = 'mean', geom = 'point',
+               col = 'white', size = 2, pch = 15) +
+  theme(legend.position = 'none') +
+  xlab('') + ylab('') +
+  coord_flip()
+```
+
+## Bidimensional
+```{r}
+pairs(data_sand[,-1], gap = 0)
+```
+
+## Tridimensional
+```{r}
+data_sand %$% 
+  plot3D::scatter3D(x = carboidrato,
+                    y = proteina,
+                    z = valor_energ,
+                    xlab = 'carboidrato',
+                    ylab = 'proteina',
+                    zlab = 'valor energético',
+                    phi = 10,
+                    theta = 30,
+                    bty = 'g',
+                    type = 'h',
+                    ticktype = 'detailed',
+                    pch = 20,
+                    colvar = NULL)
+```
+
+```{r}
+data_sand %>% 
+  ggplot(aes(x = carboidrato,
+             y = proteina,
+             size = valor_energ)) +
+  geom_point(aes(col = valor_energ))
+```
+
+## Múltiplos
+```{r}
+par(las = 2, mai = c(1.3, 0, 0, 0))
+MASS::parcoord(data_sand[,-1],
+               col = rep(c(1, 2, 3, 4, 5), each = 4),
+               lty = rep(c(1, 2, 3, 4, 5), times = 4))
+legend('topright',
+       legend = data_sand$Sanduiches,
+       cex = .8,
+       col = rep(c(1, 2, 3, 4, 5), each = 4),
+       lty = rep(c(1, 2, 3, 4, 5), times = 4))
+```
+
+```{r}
+stars(data_sand[,-1], ncol = 6,
+      labels = as.character(data_sand$Sanduiches),
+      draw.segments = T,
+      col.stars = T,
+      cex = .7,
+      key.loc = c(13, 1.9))
+```
