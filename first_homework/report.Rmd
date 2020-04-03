@@ -9,11 +9,19 @@ author:
   name: "Welinton Yoshio Hirai"
   email: 'wyhirai@usp.br'
 date: "02/04/2020"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=F}
 rm(list=ls(all=T));options(device = 'windows');cat("\f")
+
+#opções de chunck
+knitr::opts_chunk$set(
+  fig.align = 'center',
+  fig.width = 10,
+  fig.height = 6,
+  dpi = 300
+)
 
 #pacotes utilizados
 library(ggplot2) #gráficos
@@ -35,7 +43,7 @@ data_sand <-
 # Análise Gráfica
 
 ## Unidimensional
-```{r boxplot}
+```{r}
 data_sand %>% 
   melt(id.vars = 'Sanduiches') %>% 
   ggplot(aes(y = value,
@@ -53,6 +61,24 @@ data_sand %>%
 ## Bidimensional
 ```{r}
 pairs(data_sand[,-1], gap = 0)
+```
+
+```{r}
+cor(data_sand[,-1], method = 'pearson') %>% 
+  corrplot::corrplot(method = 'color',
+                     type = 'upper', 
+                     diag = F,
+                     addCoef.col = 'black',
+                     tl.col = 'black')
+```
+
+```{r}
+ppcor::pcor(data_sand[,-1])$estimate %>% 
+  corrplot::corrplot(method = 'color',
+                     type = 'upper', 
+                     diag = F,
+                     addCoef.col = 'black',
+                     tl.col = 'black')
 ```
 
 ## Tridimensional
@@ -102,3 +128,27 @@ stars(data_sand[,-1], ncol = 6,
       cex = .7,
       key.loc = c(13, 1.9))
 ```
+
+```{r}
+data_sand[,-1] %>% 
+  scale() %>%
+  dist(diag = T, upper = T) %>% 
+  as.matrix() %>% 
+  melt() %>% 
+  ggplot(aes(x = Var1,
+             y = Var2,
+             fill = value)) +
+  geom_tile(colour = 'white') +
+  scale_fill_gradient(low = "gray", high = "black") +
+  xlab('') + ylab('') +
+  scale_x_discrete(expand = c(0, 0),
+                   limits = seq(1, 20, 1),
+                   breaks = seq(1, 20, 1),
+                   labels = data_sand$Sanduiches) +
+  scale_y_discrete(expand = c(0, 0),
+                   limits = seq(1, 20, 1),
+                   breaks = seq(1, 20, 1),
+                   labels = data_sand$Sanduiches) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
