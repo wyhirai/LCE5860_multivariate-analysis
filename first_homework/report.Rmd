@@ -5,16 +5,14 @@ title: |
 subtitle: | 
  | Docente: Dr. Afrânio vieira
  | Departamento: Estatística e Experimentação Agronômica - USP
-author: 
-  name: "Welinton Yoshio Hirai"
-  email: 'wyhirai@usp.br'
+author: |
+  | Welinton Yoshio Hirai
+  | wyhirai@usp.br
 date: "02/04/2020"
-output: pdf_document
+output: html_document
 ---
 
 ```{r setup, include=F}
-rm(list=ls(all=T));options(device = 'windows');cat("\f")
-
 #opções de chunck
 knitr::opts_chunk$set(
   fig.align = 'center',
@@ -28,35 +26,42 @@ library(ggplot2) #gráficos
 library(magrittr) #pipes
 library(reshape2) #organização dos dados
 
+#link para o github
 link_github <- 'https://raw.githubusercontent.com/wyhirai/LCE5860_multivariate-analysis/master'
 ```
 
 # Dados 
 ```{r data}
-data_sand <- 
-  link_github %>% 
-  paste('/first_homework/data_sand.txt', sep = '') %>% 
+sand_data <- #importanto os dados do github
+  link_github %>% #link para página do gihub
+  paste('/first_homework/data_sand.txt', sep = '') %>%
   url() %>% 
   read.table(header = T, dec = ',')
+
+sand_data
 ```
+
+Para esta análise foi utilizada para os 10 valores nutricionais, porém apenas  para os 20 sanduiches do McDonald's. Os dados estão no arquivo **data_sand.txt**, e maiores informações no **restaurante_br.pdf**.
 
 # Análise Gráfica
 
 ## Unidimensional
 ```{r}
-data_sand %>% 
-  melt(id.vars = 'Sanduiches') %>% 
+sand_data %>% 
+  melt(id.vars = 'Sanduiches') %>% #dados em formato vertical
   ggplot(aes(y = value,
              fill = variable)) +
-  geom_boxplot(col = 'black') +
-  geom_violin(aes(x = 0), alpha = .2) +
-  facet_wrap(facets = 'variable', scales = 'free') +
-  stat_summary(aes(x = 0), fun.y = 'mean', geom = 'point',
-               col = 'white', size = 2, pch = 15) +
-  theme(legend.position = 'none') +
+  geom_boxplot(col = 'black', show.legend = F) +
+  geom_violin(aes(x = 0), alpha = .2, show.legend = F) +
+  facet_wrap(facets = 'variable', scales = 'free') + #separando gráficos por variável
+  stat_summary(aes(x = 0), fun = 'mean', geom = 'point',
+               col = 'white', size = 2, pch = 15,
+               show.legend = F) + #gerando média para cada variável
   xlab('') + ylab('') +
-  coord_flip()
+  coord_flip() #rotacionando o gráfico
 ```
+
+Inicialmente foram gerados gráficos de caixa (*boxplot*) e de violão para cada variável separadamente, afim de verificar a dispesão dos valores. Foi observado que na maioria das variáveis, apresentaram assimetria a direita, menos a variável de *fibra_alim*. Outro indicativo para a assimetria à direita, é que o valor da média (quadrado branco) é maior que o valor de mediana (reta vertical do *boxplot*).
 
 ## Bidimensional
 ```{r}
@@ -150,5 +155,27 @@ data_sand[,-1] %>%
                    breaks = seq(1, 20, 1),
                    labels = data_sand$Sanduiches) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r}
+data_sand[,-1] %>% 
+  cor(method = 'pearson') %>% 
+  det() #variância generalizadas
+```
+
+# Análise de Componentes Principais
+
+```{r}
+sand_PCA <- 
+  sand_data %>% 
+  dplyr::select(-Sanduiches) %>% 
+  scale() %>% 
+  prcomp(center = F)
+
+summary(sand_PCA)
+
+sand_PCA$rotation
+
+biplot(sand_PCA)
 ```
 
