@@ -1,0 +1,637 @@
+---
+title: |
+ | Estudo do pacote **FactoMineR**
+ | Disciplina: LCE5860 - Análise Multivariada
+subtitle: |
+ | Docente: Dr. Afrânio vieira
+ | Departamento: Estatística e Experimentação Agronômica - USP
+author: |
+ | Maria Letícia Salvador [mariale_salvador@usp.br]
+ | Welinton Yoshio Hirai [wyhirai@usp.br]
+date: "`r Sys.Date()`"
+output:
+  pdf_document: 
+    toc: yes
+    highlight: zenburn
+bibliography: references.bib
+---
+
+```{r setup, packages = F, message=F}
+knitr::opts_chunk$set(
+  dpi = 300,
+  fig.retina = 1, 
+  fig.width = 8, 
+  fig.height = 6,
+  cache = T
+)
+
+#pacotes utilizados
+library(FactoMineR)
+library(magrittr)
+library(ggplot2)
+library(corrplot)
+library(knitr)
+```
+
+# Introdução
+
+Este relatório tem como objetivo apresentar um tutorial das funções do pacote `FactorMineR` [@HussonJossePages2010] implementadas por linguagem R [@RProgram]. Ele se encontra na plataforma CRAN do R, desde Abril de 2006^[http://factominer.free.fr/history.html], estando atualmente na versão 2.3 publicada em 29/02/2020. Foi desenvolvido pelos autores: François Husson^[https://husson.github.io/index.html], Julie Josse^[http://juliejosse.com/] e Sébastien Lê^[http://sebastien.ledien.free.fr/].
+
+O pacote tem como objetivo análises exploratórias de dados, utilizando métodos multivariadas como análise de componentes principais, métodos de agrupamentos e análise de correspondência (e múltipla).
+
+Para efeito de aplicação utilizou-se dois conjuntos de dados o primeiro foi da tabela nutrícional dos sanduíches do MC Donalds para as técnicas de análise de componentes principais e de agrupamentos, e o banco de dados dos clientes da _Black Friday_ para a análise de correspondência e análise de correspondência múltipla.
+
+O relatório com os resultados das aplicações e algumas discussões realizadas pelo programa RStudio [@RProgram], além dos conjuntos de dados que foram utilizados, foram salvos na pasta _Seminario_FactoMineR_ da página pessoal do _github_ para disciplina de LCE5860-6 Análise Multivariada^[https://github.com/wyhirai/LCE5860_multivariate-analysis].
+
+```{r github}
+#link para o github
+link_github <- 'https://raw.githubusercontent.com/wyhirai/LCE5860_multivariate-analysis/master'
+```
+
+Além disto, para a melhor didática e facilidade de interpretações dos códigos e análises, foram utilizados outros pacotes além do `FactoMineR`, para uma organização no relatório as funções sempre foram especificadas com seu pacote, por exemplo `corrplot::corrplot()`.
+
+# Dados para aplicação
+
+## Hamburgueres do MC Donals
+
+Importanto o conjunto de dados e verificando a estrutura das variáveis
+
+```{r data}
+MC_data <-
+  link_github %>%
+  paste('/Seminario_FactoMineR/data_sand.txt', sep = '') %>%
+  url() %>% 
+  read.table(header = T, dec = ',')
+
+str(MC_data)
+```
+
+A tabela nutrícional dos sanduíches do MC Donals^[https://github.com/wyhirai/LCE5860_multivariate-analysis/blob/master/first_homework/restaurante_br.pdf], possui 11 colunas e 20 observações. Sendo que a primeira coluna é referente aos nomes dos hambúrgueres, e tem-se 10 variáveis referente a valores nutricionais de todos os ingredientes que compõem os hambúrgueres. 
+
+Neste trabalho, utilizaremos os dados do MC Donals para o estudo das funções  `PCA` e `HCPC`.
+
+## Dados da _Black Friday_
+
+O segundo exemplo foi referente à um banco de dados público relacionada à perfis de compradores da _Black Friday_^[https://github.com/wyhirai/LCE5860_multivariate-analysis/tree/master/Seminario_FactoMineR]. Este banco de dados contém 537.577 observações e 8 variáveis sendo elas: 
+
+* `User_ID`: identificação do usuário, contendo 5.891 usuários;
+* `Product_ID`: identificação do produto contendo 3.623 produtos;
+* `Gender`: gênero do usuário sendo que 1.666 indivíduos do sexo feminino e 4.225 indivíduos do sexo masculino;
+* `Age`: idade dos usuários divido em 7 classes: 0-17, 18-25, 26-35, 36-45, 46-50, 51-55 e 55+;
+* `Occupation`: ocupação 21 ocupações sem identificação;
+* `City_Category`: categoria da cidade nomeadas como A, B e C também sem identificação;
+* `Marital_Status`: estado civil com rótulo de 0 e 1 sem identificação (aparentemente 0 para solteiro e 1 para casado, pois não tem rótulo 1 para a faixa etária de 0-17);
+* `Purchase`: valor de compra do produto (única variável numérica) sendo que seus valores de mínimo = 185 e máximo = 23.961, com mediana = 8.062 e média = 9.334;
+
+```{r import_Black_Friday}
+#importanto os dados
+BlackFriday_data2 <-
+  link_github %>%
+  paste('/Seminario_FactoMineR/Black_Friday.txt', sep = '') %>%
+  url() %>% 
+  read.table(header = T, sep = '\t')
+
+#convertendo para fator as variáveis caracter
+BlackFriday_data <- 
+  BlackFriday_data2 %>% 
+  transform(User_ID = factor(User_ID),
+            Product_ID = factor(Product_ID),
+            Gender = factor(Gender),
+            Age = factor(Age),
+            Occupation = factor(Occupation),
+            City_Category = factor(City_Category),
+            Marital_Status = factor(Marital_Status),
+            Stay_In_Current_City_Years = NULL)
+```
+
+Como o propósito do relatório foi o estudo do pacote (`FactoMineR`), a variável de valor de compra (`Purchase`) foi dividida em 10 classes utilizando a função `base::cut()` particionando a variável em partes pelo argumento `(breaks = ...)`. Afim de transforma-la para uma variável qualitativa (ordinal), como pode ser observado no gráfico de barras (Figura \ref{BarGraph}) dada pela contagem de observações particionadas para cada classes.
+
+```{r Class_Purchase, fig.cap='\\label{BarGraph}Gráfico de barras para contagem de observações para cada classes'}
+
+#particionando a variável em 10 classes
+BlackFriday_data$Break_Purchase <- cut(BlackFriday_data$Purchase, breaks = 10)
+
+#renomeando os rótulos para as classes da variável valor de compra
+BlackFriday_data %<>% 
+  transform(Class_Purchase = factor(Break_Purchase, labels = paste('Purchase', 1:10, sep = '_')))
+
+#gráfico de barras
+BlackFriday_data %>%
+  ggplot(aes(x = Break_Purchase, fill = Class_Purchase)) + 
+  stat_count(col = 'black') +
+  scale_y_continuous(n.breaks = 10) +
+  coord_flip() +
+  theme(legend.position = 'bottom') +
+  labs(y = 'Contagem dos números de observações')
+```
+
+# Análise de Componentes Principais 
+
+A análise de componentes principais (ACP) busca explicar a estrutura de variância e covariância associada a um conjunto de variáveis através de algumas combinações lineares destas variáveis. O objetivo da ACP é encontrar uma maneira de condensar as informações contidas em várias variáveis originais em um conjunto menor de variáveis estatísticas (componentes) sem perder informações importantes.
+
+Para o estudo de ACP utilizou-se o conjunto de dados do MC Donals, aplicando a função `FactoMineR::PCA`, conténdo os seguintes argumentos:
+
+* `ncp =`: número de dimensões a serem consideradas nos resultados.
+
+* `quali.sup =`: identifica as variáveis qualitativas.
+
+* `quanti.sup =`: identifica as variáveis quantitativas.
+
+* `scale.unit =` é um valor lógico. Se `r TRUE` os dados são padronizados em uma mesma escala.
+
+* `graph =`: para habilitar ou não o gráfico (_biplot_).
+
+O código R abaixo calcula a análise de componentes principais:
+
+```{r PCA}
+MC_PCA <- FactoMineR::PCA(MC_data,
+                          quali.sup = 1,
+                          scale.unit = T,
+                          graph = F)
+```
+
+A saída da função `FactoMineR::PCA` é uma lista composta pelos seguintes componentes:
+
+```{r PCA_results}
+print(MC_PCA)
+```
+
+O resultado `MC_PCA$eig`, extrai os autovalores associados aos componentes principais, a proporção da variância e a proporção acumulada. 
+
+```{r PCA_eig}
+MC_PCA %>% 
+  magrittr::extract2('eig') %>% #similar MC_PCA$eig
+  knitr::kable(digits = 2) #gerando tabela automática com duas casas decimais
+```
+
+```{r PCA_barplot, fig.cap="\\label{PCA_barplot} Autovalores associados a cada dimensão fornecida pelo ACP."}
+barplot(MC_PCA$eig[,2],
+        main="Autovalores", 
+        names.arg=paste("dim",1:nrow(MC_PCA$eig)))
+```
+
+**Discussão:** Considerando os dos dados do MC Donals, observa-se que as duas primeiras componentes principais conjuntamente explicam 85,75 % da variância originais das variáveis. Além disto, com a Figura \ref{PCA_barplot} viu-se a diferença entre os autovalores da dimensão 1 e 2 comparado-os aos outros.
+
+## Resultados sobre as observações
+
+A função `FactoMineR::PCA` contém a lista `$ind`, que fornece uma sublista contendo todos os resultados para as observações:
+
+* `$coord`: as coordenadas para as observações;
+
+* `$cos2`: cosseno ao quadrado para as observações, utilizado para obter uma ideia da qualidade das projeções das observações para os componentes;
+
+* `$contrib`: contribuição das observações (para saber o quanto uma observação contribui para a construção de um determinado componente);
+
+Os diferentes argumentos podem ser acessados da seguinte forma:
+
+```{r PCA_ind}
+MC_PCA %>% 
+  magrittr::extract2('ind') %>%
+  magrittr::extract2('coord') %>% 
+  head() %>% 
+  knitr::kable(digits = 2)
+
+MC_PCA %>% 
+  magrittr::extract2('ind') %>%
+  magrittr::extract2('cos2') %>% 
+  head() %>% 
+  knitr::kable(digits = 2)
+
+MC_PCA %>% 
+  magrittr::extract2('ind') %>%
+  magrittr::extract2('contrib') %>% 
+  head() %>% 
+  knitr::kable(digits = 2)
+```
+
+## Resultados sobre as variáveis
+
+Por meio da função `FactoMineR::PCA`, pode se extrair uma lista de matrizes contendo todos os resultados para as variáveis com a indexação `$var`, sendo eles:
+
+* `$coord`: as coordenadas para as variáveis;
+
+* `$cor`: correlação entre as variáveis e as dimensões;
+
+* `$cos2`: cosseno ao quadrado para as variáveis;
+
+* `$contrib`: contribuição das variáveis;
+
+Esses componentes da indexação `$var` podem ser usados no gráfico da seguinte maneira:
+
+* `coord`: as coordenadas para variáveis para criar o gráfico de dispersão;
+
+* `cos2`: mostra a qualidade da representação das variáveis no mapa de fatores;
+
+* `contrib`: contém as contribuições (em porcentagem) das variáveis para os componentes principais. A contribuição de uma variável para um determinado componente principal é (em porcentagem): (var.cos2 * 100) / (cos2 total do componente);
+
+Os diferentes componentes podem ser acessados da seguinte forma:
+
+```{r PCA_var}
+MC_PCA %>% 
+  purrr::pluck('var') %>% 
+  purrr::pluck('coord') %>% 
+  knitr::kable(digits = 2)
+
+MC_PCA %>% 
+  purrr::pluck('var') %>% 
+  purrr::pluck('cor') %>% 
+  knitr::kable(digits = 2)
+
+MC_PCA %>% 
+  purrr::pluck('var') %>% 
+  purrr::pluck('cos2') %>% 
+  knitr::kable(digits = 2)
+
+MC_PCA %>% 
+  purrr::pluck('var') %>% 
+  purrr::pluck('contrib') %>% 
+  knitr::kable(digits = 2)
+```
+
+### Qualidade de representação das variáveis
+
+A qualidade de representação das variáveis no mapa de fatores é dada pelo `$cos2`. E pelo pacote `corrplot` [@corrplot2017] pode-se visualizar o `cos2` das variáveis em todas a dimensões  [@Kassambara2017_1; @Kassambara2017_2].
+
+```{r PCA_corrplot_cos2, fig.cap='Gráfico para verificar a qualidade de representação das variáveis.'}
+MC_PCA %>% 
+  magrittr::extract2('var') %>% 
+  magrittr::extract2('cos2') %>% 
+  t() %>% 
+  corrplot::corrplot(corr = .,
+                     is.corr = F, #especificar que não é uma matrix de correlação
+                     tl.col = 'black') #trocar a cor dos rótulos x e y 
+```
+
+Note que, quando o `$cos2` possui um valor alto tem-se uma boa qualidade de representação da variável no componente principal, ou seja, nesse caso, a variável está posicionada próxima à circunferência do círculo de correlação. E quando o `$cos2` possui um valor baixo, isso indica que que a variável não é perfeitamente representada pelos componentes principais, isto é, nesse caso, a variável está próxima do centro do círculo.
+
+Em resumo, pode-se dizer que:
+
+* Os valores de `$cos2` são usados para estimar a qualidade da representação da variável no componente principal.
+
+* Quanto mais próxima a variável estiver do círculo de correlações, melhor sua representação no mapa de fatores.
+
+**Discussão:** Observe que, na dimensão 1 as variáveis que apresentam boa qualidade de representação são, valor energético, proteína, gorduras trans, gorduras saturadas, gorduras totais, sódio e o açúcar. E na dimensão 2 são, o carboidrato e a fibra alimentar.
+
+### Contribuição de variáveis para componentes principais
+
+Como já visto, as contribuições das variáveis na contabilização da variabilidade em um determinado componente principal são expressas em porcentagem [@Kassambara2017_1; @Kassambara2017_2].
+
+* Variáveis correlacionadas com a primeira e a segunda componente principal são as mais importantes na explicação da variabilidade no conjunto de dados.
+
+* Variáveis que não se correlacionam com nenhum componente principal ou com as últimas dimensões são variáveis com baixa contribuição e podem ser removidas para simplificar a análise geral.
+
+Neste caso, também é  possível usar a função `corrplot::corrplot` para destacar as variáveis que mais contribuem para cada dimensão [@Kassambara2017_1; @Kassambara2017_2]:
+
+```{r PCA_corrplot_contrib, fig.cap='Gráfico para verificar quais variáveis mais contribuem para cada dimensão'}
+MC_PCA %>% 
+  magrittr::extract2('var') %>% 
+  magrittr::extract2('contrib') %>% 
+  t() %>% 
+  corrplot::corrplot(corr = .,
+                     is.corr = F, #especificar que não é uma matrix de correlação
+                     tl.col = 'black') #trocar a cor dos rótulos x e y 
+```
+
+**Discussão:** Observe que, as variáveis valor energético carboidrato e fibra alimentar contribuem mais para as dimensões 1 e 2.
+
+## Análise Gráfica
+
+Aplicando a função `FactoMineR::plot.PCA` para o objeto `MC_PCA`, pode-se escolher a partir do argumento `choix =` gerar o gráfico das variáveis (`$var`) projetadas nas 2 primeiras componentes principais, ou as observações (`$ind`). E nestes gráficos foi informado a proporção explicada das componentes principais em porcentagem.
+
+```{r PCA_biplot, fig.cap='\\label{PCA_biplot}Projeção das variáveis na 1ª e 2ª componentes principal (I) Projeção dos indivíduos na 1ª e 2ª componentes principal (II)'}
+plot1 <- plot(MC_PCA, choix = 'var')
+plot2 <- plot(MC_PCA, choix = 'ind')
+ggpubr::ggarrange(plotlist = list(plot1, plot2), labels = c('I', 'II'))
+```
+
+**Discussão:** A Figura \ref{PCA_biplot} apresenta as variáveis projetadas em um plano bidimensional geradas pelas duas primeiras componentes principais. Observa-se que, o sentido dos vetores sugerem que a variáveis carboidrato tem correlação muito próxima de zero com a variável colesterol. E valor energético e proteína são variáveis muito correlacionadas, pois os vetores tem ângulos muito próximos de zero.
+
+# Análise de agrupamento
+
+A análise de agrupamento tem como objetivo identificar grupos com objetos semelhante em um conjunto de dados. As duas estratégias mais comuns são:
+
+* Cluster hierárquico: identifica grupo de observações semelhantes.
+
+* Cluster não hierárquico: divide um conjunto de dados em vários grupos, o mais utilizado é o algoritmo de k-means.
+
+De acordo com [@HussonJossePages2010], a abordagem HCPC (_Hierarchical Clustering on Principal Components_) combina três métodos usados na análise de dados multivariados: métodos de componentes principais, cluster hierárquico e cluster não hierárquico.
+
+Neste trabalho, apresenta-se como função `FactoMineR::HCPC` pode ser usada para calcular o cluster hierárquico nos componentes principais. Esta função contém os seguintes argumentos:
+
+* `nc.clust =`: é um número inteiro que especifica o número de grupos. Se 0, a árvore é cortada no número em que o indivíduo clica, se -1 a árvore é cortada automaticamente no nível sugerido e se é um número inteiro positivo a árvore é cortada com clusters nb.clusters;
+
+* `min =` e `max =`: o número mínimo e máximo de clusters a serem exibidos;
+
+* `graph =` se TRUE os gráficos são exibidos;
+
+* `method =`: temos os seguintes métodos, `ward`, `average`, `complete` e o `single`. Em que o `ward` é o método padrão;
+
+Para o estudo da função `HCPC`, considerou-se novamente o conjunto de dados do MC Donals^[https://github.com/wyhirai/LCE5860_multivariate-analysis/blob/master/first_homework/restaurante_br.pdf].
+
+Aplicando a função `plot` para o objeto `MC_data`, pode-se gerar o gráfico de agrupamento para as observações. E com o argumento `choice` pode-se escolher o tipo de gráfico a ser projetados, em que:
+
+* `tree`: apresentar o gráfico de árvore;
+
+* `map`: apresentar um mapa de fatores;
+
+* `3D.map`: apresentar o mesmo mapa de fatores com as observações coloridas por cluster e a árvore acima;
+
+Primeiramente, realizou-se a análise de agrupamentos considerando os dados do MC Donals sem levar nenhum método em consideração. Então, aplicou-se a função `HCPC` no conjunto de dados em estudo, considerando o método Ward, em seguida apresentou-se uma análise gráfica com os diferentes tipos de gráficos apresentados pela função.
+
+```{r HCPC}
+row.names(MC_data) <- MC_data$Sanduiches
+
+MC_HCPC <- HCPC(MC_data[,-1], nb.clust = -1, graph = F, method = 'ward')
+```
+
+```{r HCPC_tree, fig.cap='Dendograma, para os dados do MC Donals'}
+plot(MC_HCPC, choice = 'tree')
+```
+
+
+```{r HCPC_map, fig.cap= 'Mapa de fatores, para os dados do MC Donals'}
+plot(MC_HCPC, choice = 'map', draw.tree = F)
+```
+
+
+```{r HCPC_3Dmap, fig.cap='Mapa de fatores em 3D'}
+plot(MC_HCPC, choice = '3D.map')
+```
+
+**Discussão:** Os resultados nos indicam 3 clusters.
+
+Inicialmente computou-se novamente a análise de componentes principais usando a função `FactoMineR::PCA`, em que o argumento `ncp = 2` indica que deve-se considerar apenas as duas primeiras componentes principais. Em seguida, a função `FactoMineR::HCPC` é aplicada no resultado do ACP.
+
+```{r HCPC_withPCA}
+# Cálculo da ACP com ncp=2
+ MC_PCA2 <- FactoMineR::PCA(MC_data,
+                           quali.sup = 1,
+                           scale.unit = T, #padronizando as variáveis
+                           graph = F)
+ 
+# # Cálculo do agrupamento hierárquico em componentes principais
+ MC_HCPC <- HCPC(MC_PCA2,
+                 nb.clust = -1,
+                 graph = F)
+```
+
+ A função `FactoMineR::HCPC` tem as seguintes indexações:
+ 
+ * `data.clust`: extrai os dados originais com uma coluna suplementar que contém as atribuições de cluster;
+ 
+ * `desc.var`: que exibe as variáveis que descrevem cada cluster;
+ 
+ * `desc.ind`: mostra os indivíduos mais representativos de cada cluster;
+ 
+ * `desc.axe`: mostra as principais dimensões mais associadas a cada clusters;
+ 
+Para exibir os dados originais com as atribuições de cluster, utiliza-se o seguinte comando:
+
+```{r HCPC_withPCA2}
+MC_HCPC %>% 
+  magrittr::extract2('data.clust') %>% 
+  knitr::kable()
+```
+
+Note que, a última coluna contém as atribuições do cluster. 
+
+**Discussão:** Então, por meio da saída acima, tem-se, por exemplo, que o cluster 1 contém os seguintes sanduiches: Mc Fish, McChicken, Duplo Salada, Extra Chicken , Chicken Supreme Grill, Cheeseburger, Hamburger, McDuplo. 
+
+Para se ter as variáveis que descrevem cada cluster, digita-se:
+
+```{r HCPC_withPCA_var}
+MC_HCPC %>% 
+  magrittr::extract2('desc.var') %>% 
+  magrittr::extract2('quanti')
+```
+
+**Discussão:** As variáveis que descrevem o cluster 1 são: açúcar, colesterol, sódio, proteína, gorduras trans, gordura saturada, gorduras totais e valor energético estão significativamente  associadas ao cluster 1. Por exemplo, o valor médio da variável açúcar é de 6,5 que é menor que a média geral (8,925) em todos os clusters, ou seja, o cluster 1 é caracterizado por sanduiches que possuem baixa taxa de açúcar. Pode-se concluir então que este cluster é caracterizado por sanduiches com baixa taxa de açúcar, colesterol, sódio, proteína, valor energético e também por hambúrgueres menos gordurosos O cluster 2 possui os sanduiches com alta taxa de colesterol. Já o cluster 4 os sanduiches possuem alta taxa de carboidrato, açúcar e sódio. E as variáveis que descrevem o cluster 5 são, sódio, proteína, gorduras trans, gordura saturada, gorduras totais, este cluster é caracterizado pelos sanduiches que são mais gordurosos.
+
+Pode-se também, observar quais os eixos que descrevem os clusters, tem-se o seguinte comando:
+
+```{r HCPC_withPCA_axes}
+MC_HCPC %>% 
+  magrittr::extract2('desc.axes')
+```
+
+**Discussão:** Os resultados, indicam que os sanduiches nos clusters 1 e 5 tem coordenadas altas no primeiro eixo e os que pertencem ao cluster 2 e 4 possuem altas coordenadas no eixo dois e três.
+
+E os sanduiches representativos de cada clusters podem ser extraídos da seguinte maneira:
+
+```{r HCPC_withPCA_ind}
+MC_HCPC %>% 
+  magrittr::extract2('desc.ind')
+```
+
+Tem-se que,  comando `desc.ind$para`, indica quais são os sanduiches mais próximos do centro do cluster. E o comando `desc.ind$dist` indica os sanduiches que se encontram mais distantes do centro do cluster.
+
+## Análise Gráfica
+
+Aplicando a função `plot.HCPC` para o objeto `MC_HCPC`, pode-se escolher por meio do argumento `choice` gerar o gráfico das variáveis (`map`) projetadas nas 2 primeiras componentes principais, ou as observações (`3D.map`). E nestes gráficos pode visualizar em quais clusters se encotram as observações.
+
+```{r}
+MC_HCPC <- HCPC(MC_PCA2, 
+                nb.clust=-1,
+                graph = F)
+
+par(mfrow = c(1, 2))
+plot(MC_HCPC, choice = 'tree', tree.barplot = F)
+plot(MC_HCPC, choice = 'bar')
+
+par(mfrow = c(1, 2))
+plot(MC_HCPC, choice = 'map', draw.tree = F)
+plot(MC_HCPC, choice = '3D.map')
+```
+
+# Análise de Correspondência
+
+A Análise de Correspondência (_Correspondence Analysis_ - CA) é uma técnica multivariada exploratória para análise numérica e gráfica de dados com a forma de matriz (sem valores negativos), mas é amplamente utilizadas para tabelas de frequências e contagens [@GreenacreBlasius2006]. Assim, para este método, foi utilizado os dados da _Black Friday_.
+
+Foi utilizada a CA, afim de verificar como está caracterizada a relação de linha e coluna entre as variáveis de classes do valor de compra (`Class_Purchase`) e idade dos clientes da _Black Friday_ (`Age`), como hipótese verificar se a faixa etária, tem diferentes perfis de compra. Para isto, foi utilizada uma tabela de contagens de quantas compras houveram para cada classe de compra (linha), em relação a cada idade (colunas).
+
+```{r CA_table_freq, fig.cap='Gráfico de retângulos para a tabela de contagens das classes de compra, em relação as idades'}
+BlackFriday_data %>% 
+  dplyr::select(Class_Purchase, Age) %>% 
+  table() %>% 
+  as.data.frame() %>% 
+  ggplot(aes(x = Age, 
+             y = Class_Purchase, 
+             fill = Freq)) +
+  geom_tile(colour = 'black') +
+  geom_text(aes(label = Freq),
+            colour = 'black ') + 
+  scale_fill_gradient2(name = 'Contagem',
+                       n.breaks = 10,
+                       mid = 'white', high = 'darkblue')
+```
+
+Para isso o pacote `FactoMineR` [@LeJosseHusson2008] tem a função `FactoMineR::CA()`, em que o objeto de entrada para a função foi a tabela de contagens. Os principais argumentos da função (mais informações no `base::help(CA, "FactoMineR")`) são:
+
+* `X = `: onde se insere a tabela;
+* `ncp = `: nº de dimensões que os *resultados* da análise apresenta (padrão é 5);
+* `graph = `: (lógico) só assume valores `TRUE` ou `FALSE`, é o argumento para apresentar o gráfico da CA (afim de didática foi apresentado mais a frente);
+
+```{r CA_function}
+BlackFriday_CA <- 
+  BlackFriday_data %>% 
+  dplyr::select(Class_Purchase, Age) %>% 
+  table() %>%
+  FactoMineR::CA(X = .,
+                 ncp = 5,
+                 graph = F)
+```
+
+O primeiro resultado que vamos observar é o próprio objeto que foi atribuída a função `FactoMiner::CA()`. Inicialmente pode-se observar que foi realizado o teste de $\chi^2$. Além disto, exibe as demais listas que podem ser apresentados, como por exemplo `$eig`, `$col`, `$col$coord` e entre outros.
+
+**Discussão:** para o nosso exemplo o teste mostrou-se um valor de probabilidade $<0$, assim rejeitou-se a hipótese nula ($H_0$) de indepêndência entre as linhas e colunas.
+
+```{r CA_result}
+BlackFriday_CA
+```
+
+Na lista `$eig` apresentou-se os autovalores, o percentual da variância, e o percentual acumulado. 
+
+**Discussão:** pode-se observar que apenas 2 dimensões foi o bastante para explicar, aproximadamente, 89.12 % da variância percentual acumulada. 
+
+```{r CA_result_eig}
+BlackFriday_CA %>% 
+  magrittr::extract2('eig') %>%
+  knitr::kable()
+```
+
+Abaixo são os valores das coordenadas (`$row$coord`) dos indivíduos das linhas (classes de valores de compra) na projeção que tenha máxima inercia total contido no espaço de dimensão das colunas (idade dos clientes). Similar ao apresentado na seção de análise de componentes principais.
+
+```{r CA_result_row_coord}
+BlackFriday_CA %>% 
+  magrittr::extract2('row') %>%
+  magrittr::extract2('coord') %>%
+  knitr::kable(digits = 2)
+```
+
+O próximo resultado são cálculos de contribuição (`$row$contrib`) que as variáveis das linhas apresentam para cada dimensão. Afim de facilitar a visualização, como foi realizado na PCA, construiu-se um gráfico para visualização de matrizes com a função `corrplot::corrplot()`, apresentando circunferências maiores de com cores mais fortes (azul), para aqueles que apresentam valores altos. 
+
+```{r CA_result_row_contrib}
+BlackFriday_CA %>% 
+  magrittr::extract2('row') %>%
+  magrittr::extract2('contrib') %>%
+  t() %>% 
+  corrplot::corrplot(is.corr = F, tl.col = 'black', mar = c(0, 0, .5, 0))
+```
+
+E de forma similar, tem-se os mesmo resultados de coordenadas e contribuição para as variáveis de linhas
+
+```{r CA_result_col_coord}
+BlackFriday_CA %>% 
+  magrittr::extract2('col') %>%
+  magrittr::extract2('coord') %>%
+  knitr::kable(digits = 2)
+```
+
+```{r CA_result_col_contrib}
+BlackFriday_CA %>% 
+  magrittr::extract2('col') %>%
+  magrittr::extract2('contrib') %>%
+  t() %>% 
+  corrplot::corrplot(is.corr = F, tl.col = 'black', mar = c(0, 0, .5, 0))
+```
+
+Resumindo todas as saídas, pode-se pedir o `summary.CA()` para o objeto que foi atribuído a CA, além disto, para não deixa carregado de informações, pode-se pedir o nº de dimensões que foi avaliado como significativo para a análise utilizado o argumento `ncp =`.
+
+```{r CA_summary}
+summary(BlackFriday_CA, ncp = 2)
+```
+
+Além disto, de uma maneira mais didática e apresentável o gráfico da CA, em que são apresentadas as coordenadas da variáveis de linhas e colunas, nas dimensões escolhidas (`axes =`) além dos seus respectivos o percentual de variância. 
+
+**Discussão:** Com o gráfico abaixo, podemos observar como foi caracterizada as variáveis de linhas e coluna na dimensão 1. Em relação as classes de valor de compra, pode-se observar uma diferença entre a classe 10 em relação com seus demais, principalmente com a classe 2 apresentado um sentido oposto, agora para idade houve indícios de uma relação antagonista para as idade de clientes com faixa etária de jovens (18-25, 0-17, 26-35) e adultos (46-50, 51-55, 55+). 
+
+Na segunda dimensão, houve uma caracterização para a idade 0-17 que se destoa dos demais, além de uma aproximação em relação à classe 1, indicando uma possível aproximação destas informações. Mais informações e expressões foram apresentadas nos livros [@GreenacreBlasius2006; @LeRouxRouanet2010; @LebartMorineauPiron1995]
+
+Além disto, o pacote apresenta um função `FactoMineR::ellipseCA()` para construção de elipses de confiança utilizando o método de _bootstrap_ para as categorias de cada variáveis (linhas e colunas), a partir das coordenadas da projeção nas dimensões 1 e 2.
+
+```{r CA_biplot, fig.cap='Gráfico da projeção pelo método CA das variáveis categóricas nas dimensões 1 e 2 (I) e suas respectivas elipse de confiança(I)'}
+plot1 <- plot(BlackFriday_CA, axes = c(1, 2))
+plot2 <- FactoMineR::ellipseCA(BlackFriday_CA, method = 'boot')
+ggpubr::ggarrange(plotlist = list(plot1, plot2), ncol = 1, labels = c('I', 'II'))
+```
+
+# Análise de Correspondência Múltipla
+
+A Análise de Correspondência Multipla (_Multiple Correspondence Analysis_ - MCA) é aplicado para tabelas em que os indivíduos estão nas linhas e categorias nas colunas [@LeJosseHusson2008]. 
+
+Sintetizando a o método que é realizado a MCA, constrói-se uma matriz _dummy_ a partir dos dados para cada indivíduo nas linhas em relação aos nível das categorias nas colunas, e depois é realizado o algoritmo a CA [@GreenacreBlasius2006; @LeRouxRouanet2010]
+
+Como o método é intensivo computacionalmente, foi selecionado de forma aleatória uma amostra de 500 indivíduos para a análise, a partir da função `base::sample()`.
+
+```{r MCA_sampling}
+set.seed(2020)
+n_select <- sample(1:nrow(BlackFriday_data), size = 500)
+
+BlackFriday_data %>%
+  dplyr::slice(n_select) %>% 
+  dplyr::select(Gender, Age, Occupation, Marital_Status, City_Category, Class_Purchase) %>%
+  summary(maxsum = 10)
+```
+
+Pode-se visualizar como os 500 grupos foram agrupados em relação as variáveis categóricas de gênero, idade, ocupação, estado civil, categoria da cidade e classe de valor de compra.
+
+```{r MCA}
+BlackFriday_MCA <-
+  BlackFriday_data %>%
+  dplyr::slice(n_select) %>% 
+  dplyr::select(Gender, Age, Occupation, Marital_Status, City_Category, Class_Purchase) %>%
+  FactoMineR::MCA(X =.,
+                  ncp = 25,
+                  graph = F,
+                  axes = c(1, 2))
+```
+
+A análise foi alocada no objeto `BlackFriday_MCA`, e de modo similar ao CA podemos visualizar o resumo das informações (`summary.MCA()`) sobre as variâncias de cada dimensão, a coordenada das variáveis de linhas e colunas e suas respectivas contribuições. De maneira similar, também pode-se pedir os resultados das contribuições `$contrib`, coordenadas `$coord` e cossenos `$cos2` tanto das variáveis `$var` quantos do indivíduos `$ind`, porém como o conjunto de dados possuí grande quantidade de informação, optou-se apenas de gerar o gráfico de matriz para as contribuições das variáveis (Figura \ref{MCA_var}).
+
+```{r MCA_results}
+summary(BlackFriday_MCA)
+```
+
+```{r MCA_var, fig.cap='\\label{MCA_var}Gráfico para verificar quais variáveis mais contribuem para cada dimensão (cosseno)'}
+BlackFriday_MCA %>% 
+  magrittr::extract2('var') %>% 
+  magrittr::extract2('cos2') %>% 
+  t() %>%
+  corrplot::corrplot(is.corr = F, tl.col = 'black')
+```
+
+Para critérios de didática para apenas a visualização dos possíveis resultados, será considerado apenas as duas primeiras dimensões, porém seria necessário a utilização de mais dimensões que pode ser modificado utilizando o argumento `axes =` . Mesmo assim o _biplot_ ficou poluído visualmente devido à grande quantidade de informações que é apresentado, com isto, pode-se utilizar o argumento `invisible = c('ind', 'var')` para selecionar quais das informações (indivíduos ou variáveis) não se demonstra na figura.
+
+```{r MCA_graph, fig.cap='Gráfico da projeção pelo método MCA para os indivíduos e as variáveis nas dimensões 1 e 2'}
+plot(BlackFriday_MCA, axes = c(1, 2))
+```
+
+```{r MCA_graph2, fig.cap='Gráfico da projeção pelo método MCA para os indivíduos (I) e as variáveis (II) nas dimensões 1 e 2'}
+plot_list <- lapply(c('ind', 'var'), 
+                    function(x) plot(BlackFriday_MCA, invisible = x, title = paste('MCA graph:', x)))
+ggpubr::ggarrange(plotlist = plot_list, ncol = 1, labels = c('I', 'II'))
+```
+
+**Discussão:** foi observado que na dimensão 1 a faixa etária de 0-17 e a ocupação 10 foram as mais expressivas. Indicando que o perfil de clientes da _Black Friday_ que tem entre 0-17 apresenta tipo de ocupação 10. De forma que, para a dimensão 2, o classe 10 de valor de compra, com a ocupação 10 e 13 e a faixa etária de 0-17 mostram-se significativas para a dimensão 2.
+
+Além disto, com a função `FactoMineR::plotellipses`pode-se gerar os gráficos de elipse de confiança para as variáveis categóricas, utilizando as coordenadas relacionadas as respectivas dimensões, sendo possível ser alterado utilizando o argumento `axes =`.
+
+```{r MCA_ellipse, fig.cap='Elipse de confiança para MCA, para as categorias das variáveis'}
+plotellipses(BlackFriday_MCA,
+             axes = c(1, 2),
+             graph.type = 'classic')
+```
+
+# Considerações Finais
+
+O pacote `FactoMineR` é completo para a análises exploratória de dados com estrutura multivariada, e atualmente isto é uma ferramente muito útil devido ao aumento de método para mineração de dados, além da sua facilidade para analisar tantos variáveis quantitativas, como qualitativas, ou o conjunto entre elas.
+
+Porém deve se ter cuidado para quantidade de dados absurdamente grandes, para os dados da _Black Friday_ a análise de correspondência múltipla não foi possível de ser realizada, devido a quantidade enorme de observações.
+
+Mas com uma comunidade bastante ativa, tanto para tutoriais sobre o pacote, sanar dúvidas em forúns, e para novas implementações que estão sendo realizadas, é pacote bem confiável e com credibilidade, qualidades importantes para alguém que necessita destas análises, devido a quantidades grandes de bibliotecas que cresce na comunidade.
+
+Outras funções podem ser abordadas futuramentes para estudo, como a função `FactoMineR::FAMD` que é dedicado à uma exploração de dados com variáveis contínuas e categóricas, que aborda a análise de ACP e MCA conjuntamente para balancear as influencias das diferentes características das variáveis. Ou até uma biblioteca nova que os autores estão trabalhando, a `missMDA` [@missMDA] para imputação de dados devido a problemas que o método de ACP e MCA sofre quando tem observações com valores ausentes em algumas variáveis. 
+
+\newpage
+
+# Referências
